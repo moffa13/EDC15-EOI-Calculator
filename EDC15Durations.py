@@ -294,12 +294,12 @@ SOIOptions = {
 		'add': 78
 	},
 	'x': {
-		'address': 0x7887A,
+		'address': 0x00000,
 		'multiplier': 0.01,
 		'add': 0
 	},
 	'y': {
-		'address': 0x78856,
+		'address': 0x00000,
 		'multiplier': 1,
 		'add': 0
 	}
@@ -327,14 +327,12 @@ durations.append(Map(bytes, 0x74a1e, durationsOptions))
 durations.append(Map(bytes, 0x74ca4, durationsOptions))
 durations.append(Map(bytes, 0x74f2a, durationsOptions))
 durations.append(Map(bytes, 0x751b0, durationsOptions))
-
+SOIOptions["x"]["address"] = 0x7887A
+SOIOptions["y"]["address"] = 0x78856
+SOI = Map(bytes, 0x7a15a, SOIOptions)
 
 #maxSOIFromRPMHeader = [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000]
 #maxSOIFromRPMValues = [  15,   15,   15,     ,     ,     ,     ,     ,   27]
-
-
-
-SOI = Map(bytes, 0x7a15a, SOIOptions)
 
 '''selector = Map(bytes, 0x5538a, selectorOptions)
 durations = []
@@ -348,6 +346,11 @@ SOIOptions["x"]["address"] = 0x58620
 SOIOptions["y"]["address"] = 0x585FC
 SOI = Map(bytes, 0x59F00, SOIOptions)
 #SOI = Map(bytes, 0x59480, SOIOptions) # SOI 0°C'''
+
+
+
+
+
 Injection = Map(None, 0)
 Injection.copyAxis(SOI)
 
