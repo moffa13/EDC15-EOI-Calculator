@@ -242,7 +242,8 @@ def findBestSOIToMatchEOI(rpm, iq, soi, maxSOIDeviation, maxSOI, increment, targ
 	bestSOI = soi
 	bestEOI = 100
 
-	first = soi - maxSOIDeviation # we start at lowest possible soi
+	#first = soi - maxSOIDeviation # we start at lowest possible soi
+	first = soi # maybe we should not try with lower soi as it could set very low soi because lower soi = lower durations
 	while first < soi + maxSOIDeviation and first <= maxSOI:
 		val = first - findInjectionfromSOI(durations, selector, iq, rpm, first) # find different EOI for same iq, rpm but different soi
 		diff = abs(val - targetEOI)
@@ -283,6 +284,21 @@ durationsOptions = {
 	},
 	'y': {
 		'multiplier': 0.01,
+		'add': 0
+	}
+}
+
+IQByMapOptions = {
+	'map': {
+		'multiplier': 0.01,
+		'add': 0
+	},
+	'x': {
+		'multiplier': 1,
+		'add': 0
+	},
+	'y': {
+		'multiplier': 1,
 		'add': 0
 	}
 }
@@ -329,6 +345,8 @@ durations.append(Map(bytes, 0x74f2a, durationsOptions))
 durations.append(Map(bytes, 0x751b0, durationsOptions))
 SOIOptions["x"]["address"] = 0x7887A
 SOIOptions["y"]["address"] = 0x78856
+IQByMap = Map(bytes, 0x6E3C8, IQByMapOptions)
+print(IQByMap)
 SOI = Map(bytes, 0x7a15a, SOIOptions)
 
 #maxSOIFromRPMHeader = [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000]
@@ -366,7 +384,7 @@ for x in range(SOI.xAxisSize):
 
 		
 		if realSOIX >= 45 and realSOIY >= 2000:
-			bestSOI = findBestSOIToMatchEOI(realSOIY, realSOIX, value, 10, 30, 0.005, -9)
+			bestSOI = findBestSOIToMatchEOI(realSOIY, realSOIX, value, 15, 27, 0.005, -8)
 			value = bestSOI
 			SOI.setV(x, y, bestSOI)
 
@@ -383,4 +401,6 @@ print(Injection)
 print("EOI TABLE")
 print(EOI)
 
-SOI.writeToFile(edc15File)
+print(IQByMap.interpolate(2700, 4000))
+
+#SOI.writeToFile(edc15File)
