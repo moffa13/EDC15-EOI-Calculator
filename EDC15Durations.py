@@ -90,28 +90,32 @@ class Map:
 		res = (diffMin / diffY) * realDiff
 		return min + res
 
+	'''
+	Returns from the axis values from which ones we should interpolate from
+	'''
 	@staticmethod 
 	def findUpperLowerBoundaries(headerList, x):
 		i = 0
-		for i in range(len(headerList)):
+		for i in range(len(headerList)): # iterate over the whole axis
 			realHeader = headerList[i]
 			lower = 0
 			upper = 0
-			if x < realHeader:
+			if x < realHeader: # we found the range
 				upper = headerList[i]
 				if i != 0:
 					lower = headerList[i - 1]
 				else:
-					lower = upper
-				
-				break
-			elif x == realHeader:
+					lower = upper # i = 0, extrapolate, return first value
+				return (lower, upper)
+			elif x == realHeader: # x equals to an existing value, there is no range so lower=upper=h[i]
 				upper = headerList[i]
 				lower = headerList[i]
-				break
-		if i == len(headerList) - 1 and x > headerList[i]:
+				return (lower, upper)
+		if i == len(headerList) - 1 and x > headerList[i]: # extrapolate, return last value
 			return (headerList[i], headerList[i])
-		return (lower, upper)
+	'''
+	Returns value from a 3d map, None if no exact match
+	'''
 	def getValue(self, x, y):
 		for i in range(self.xAxisSize):
 			xAxisValue = self.xAxis[i]
@@ -192,24 +196,19 @@ class Map:
 	def loadX(self, node):
 		self.xAxisSize = node.data
 		self.xAxis = []
-
 		node = node.next
-
 		for i in range(self.xAxisSize):
 			v = node.data * self.options["x"]["multiplier"] + self.options["x"]["add"]
-			
 			if "func" in self.options["x"]:
 				v = self.options["x"]["func"](v)
-
 			self.xAxis.append(v)
 			node = node.next
 		return node
+
 	def loadY(self, node):
 		self.yAxisSize = node.data
 		self.yAxis = []
-
 		node = node.next
-		
 		for i in range(self.yAxisSize):
 			v = node.data * self.options["y"]["multiplier"] + self.options["y"]["add"]
 			if "func" in self.options["y"]:
@@ -217,6 +216,7 @@ class Map:
 			self.yAxis.append(v)
 			node = node.next
 		return node
+
 	def loadData(self, node=None):
 		self.data = []
 		
@@ -275,7 +275,6 @@ def findBestSOIToMatchEOI(rpm, iq, soi, maxSOIDeviation, maxSOI, increment, targ
 		val = first - findInjectionfromSOI(durations, selector, iq, rpm, first) # find different EOI for same iq, rpm but different soi
 		diff = abs(val - targetEOI)
 		if min(diff, bestEOI) == diff:
-			#print(f"found better eoi of {val} with soi {first}")
 			bestEOI = diff
 			bestSOI = first
 
@@ -392,10 +391,6 @@ SOIOptions["y"]["address"] = 0x585FC
 SOI = Map(bytes, 0x59F00, SOIOptions)
 #SOI = Map(bytes, 0x59480, SOIOptions) # SOI 0°C'''
 
-
-
-
-
 Injection = Map(None, 0)
 Injection.copyAxis(SOI)
 
@@ -410,10 +405,10 @@ for x in range(SOI.xAxisSize):
 		value = SOI.get(x, y) # value
 
 		
-		if realSOIX >= 45 and realSOIY >= 2000:
+		'''if realSOIX >= 45 and realSOIY >= 2000:
 			bestSOI = findBestSOIToMatchEOI(realSOIY, realSOIX, value, 15, 27, 0.005, -8)
 			value = bestSOI
-			SOI.setV(x, y, bestSOI)
+			SOI.setV(x, y, bestSOI)'''
 
 		realInjectionVal = findInjectionfromSOI(durations, selector, realSOIX, realSOIY, value)
 		EOI.setV(x, y, value - realInjectionVal)
@@ -427,9 +422,5 @@ print(Injection)
 
 print("EOI TABLE")
 print(EOI)
-
-print(IQByMap.interpolate(2700, 4000))
-
-print(Map.rawInterpolate(4, 8, 200, 600, 500))
 
 #SOI.writeToFile(edc15File)
