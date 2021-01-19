@@ -45,11 +45,7 @@ class Map:
 			self.load()
 
 	def writeToFile(self, file):
-		if "onlyX" in self.options and self.options["onlyX"]:
-			print("NOT IMPLEMENTED")
-		elif "onlyData" not in self.options or not self.options["onlyData"]:
-			print("NOT IMPLEMENTED")
-		else:
+		if self.isMapWithoutAxis():
 			# ONLY DATA LIKE SOI
 			file = open(os.path.join(os.path.dirname(__file__), file), 'rb+')
 			file.seek(self.address) # go to data because file is displacement is in bytes
@@ -60,6 +56,8 @@ class Map:
 					v = struct.pack('<h', val)
 					file.write(v)
 			file.close()
+		else:
+			print("NOT YET IMPLEMENTED !")
 	def __str__(self):
 		ret = "    "
 		for i in range(self.xAxisSize):
@@ -76,12 +74,18 @@ class Map:
 
 		return ret
 
+	'''
+	Takes two axis values with corresponding values and returns the interpolated between the two
+	yMin, yMax are the axis values
+	min, max are the values
+	y is the value we want to interpolate between yMin and yMax
+	'''
 	@staticmethod 
 	def rawInterpolate(min, max, yMin, yMax, y):
 		diffMin = max - min
 		diffY = yMax - yMin
-		if diffY == 0:
-			return min
+		if diffY == 0 or diffMin == 0:
+			return min # or max ?
 		realDiff = y - yMin
 		res = (diffMin / diffY) * realDiff
 		return min + res
@@ -111,43 +115,52 @@ class Map:
 	def getValue(self, x, y):
 		for i in range(self.xAxisSize):
 			xAxisValue = self.xAxis[i]
-			if xAxisValue == x:
+			if xAxisValue == x :
 				for j in range(self.yAxisSize):
 					yAxisValue = self.yAxis[j]
 					if yAxisValue == y:
 						return self.get(i, j)
 		return None
+	'''
+	Returns a value from interpolating in a map
+	'''
 	def interpolate(self, reqX, reqY):
+
 		xRange = Map.findUpperLowerBoundaries(self.xAxis, reqX)
 		yRange = Map.findUpperLowerBoundaries(self.yAxis, reqY)
-		
-		v1 = self.getValue(xRange[0], yRange[0])
-		v2 = self.getValue(xRange[0], yRange[1])
-		v3 = self.getValue(xRange[1], yRange[0])
-		v4 = self.getValue(xRange[1], yRange[1])
-		
-		xInterpolate = Map.rawInterpolate(v1,v3, xRange[0], xRange[1], reqX)
-		xInterpolate2 = Map.rawInterpolate(v2,v4, xRange[0], xRange[1], reqX)
 
-		return Map.rawInterpolate(xInterpolate, xInterpolate2, yRange[0], yRange[1], reqY)
+		if xRange[0] == xRange[1] and yRange[0] == yRange[1]:
+			return self.getValue(xRange[0], yRange[0])
+		elif xRange[0] == xRange[1]:
+			v1 = self.getValue(xRange[0], yRange[0])
+			v2 = self.getValue(xRange[0], yRange[1])
+			return Map.rawInterpolate(v1, v2, yRange[0], yRange[1], reqY)
+		elif yRange[0] == yRange[1]:
+			v3 = self.getValue(xRange[0], yRange[1])
+			v4 = self.getValue(xRange[1], yRange[1])
+			return Map.rawInterpolate(v3, v4, xRange[0], xRange[1], reqX)
+		else:
+			v1 = self.getValue(xRange[0], yRange[0])
+			v2 = self.getValue(xRange[0], yRange[1])
+			v3 = self.getValue(xRange[1], yRange[0])
+			v4 = self.getValue(xRange[1], yRange[1])
+			xInterpolate = Map.rawInterpolate(v1,v3, xRange[0], xRange[1], reqX)
+			xInterpolate2 = Map.rawInterpolate(v2,v4, xRange[0], xRange[1], reqX)
+			return Map.rawInterpolate(xInterpolate, xInterpolate2, yRange[0], yRange[1], reqY)
 
 	def load(self):
 		listStart = self.edcList.head
 		mapStart = listStart.skip(self.address / 2)
 		mapStart = mapStart.next # skip number descriptor
 
-		if "onlyX" in self.options and self.options["onlyX"]:
-			mapStart = self.loadX(mapStart)
-			self.yAxisSize = 1
-			self.yAxis = [0]
-			self.loadData(mapStart)
-		elif "onlyData" not in self.options or not self.options["onlyData"]:
+
+		if self.isNormalMap():
 
 			mapStart = self.loadY(mapStart)
 			mapStart = mapStart.next
 			mapStart = self.loadX(mapStart)
 			self.loadData(mapStart)
-		else:
+		elif self.isMapWithoutAxis():
 			mapStart = listStart.skip(self.options["x"]["address"] / 2)
 			mapStart = mapStart.next
 			self.loadX(mapStart)
@@ -158,9 +171,23 @@ class Map:
 
 			mapStart = listStart.skip(self.address / 2)
 			self.loadData(mapStart)
+		elif self.is1DMap():
+			mapStart = self.loadX(mapStart)
+			self.yAxisSize = 1
+			self.yAxis = [0]
+			self.loadData(mapStart)
+		else:
+			raise Exception("Unknown error")
 
 
-		
+	def is1DMap(self):
+		return "onlyX" in self.options and self.options["onlyX"]
+
+	def isMapWithoutAxis(self):
+		return "onlyData" in self.options and self.options["onlyData"]
+
+	def isNormalMap(self):
+		return not self.is1DMap() and not self.isMapWithoutAxis()
 
 	def loadX(self, node):
 		self.xAxisSize = node.data
@@ -402,5 +429,7 @@ print("EOI TABLE")
 print(EOI)
 
 print(IQByMap.interpolate(2700, 4000))
+
+print(Map.rawInterpolate(4, 8, 200, 600, 500))
 
 #SOI.writeToFile(edc15File)
