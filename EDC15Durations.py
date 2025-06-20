@@ -293,7 +293,7 @@ def readToFile(file, bytes):
 
 
 #edc15File = input("Enter EDC15 filename : ")
-edc15File = "moffa13-polo.bin"
+edc15File = "polo-blt-moffa.bin"
 #edc15File = "Michael Schafer GTB2260VK V9.bin"
 #conf = input("Enter EDC15 Durations addresses list : ")
 bytes = DoubleLinkedList()
@@ -361,6 +361,21 @@ selectorOptions = {
 	}
 }
 
+TLOptions = {
+	'map': {
+		'multiplier': 0.010000,
+		'add': 0
+	},
+	'x': {
+		'multiplier': 1,
+		'add': 0
+	},
+	'y': {
+		'multiplier': 1,
+		'add': 0
+	}
+}
+
 selector = Map(bytes, 0x7544c, selectorOptions)
 durations = []
 durations.append(Map(bytes, 0x746a0, durationsOptions))
@@ -375,21 +390,26 @@ IQByMap = Map(bytes, 0x6E3C8, IQByMapOptions)
 print(IQByMap)
 SOI = Map(bytes, 0x7a15a, SOIOptions)
 
-#maxSOIFromRPMHeader = [1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000]
-#maxSOIFromRPMValues = [  15,   15,   15,     ,     ,     ,     ,     ,   27]
+TL = Map(bytes, 0x6D91E, TLOptions)
+TLINJ = Map(None, 0)
+TLINJ.copyAxis(TL)
 
-'''selector = Map(bytes, 0x5538a, selectorOptions)
-durations = []
-durations.append(Map(bytes, 0x545de, durationsOptions))
-durations.append(Map(bytes, 0x546d6, durationsOptions))
-durations.append(Map(bytes, 0x5495c, durationsOptions))
-durations.append(Map(bytes, 0x54be2, durationsOptions))
-durations.append(Map(bytes, 0x54e68, durationsOptions))
-durations.append(Map(bytes, 0x550ee, durationsOptions))
-SOIOptions["x"]["address"] = 0x58620
-SOIOptions["y"]["address"] = 0x585FC
-SOI = Map(bytes, 0x59F00, SOIOptions)
-#SOI = Map(bytes, 0x59480, SOIOptions) # SOI 0°C'''
+TLEOI = Map(None, 0)
+TLEOI.copyAxis(TL)
+
+for x in range(TL.xAxisSize):
+	for y in range(TL.yAxisSize):
+		rpm = TL.xAxis[x]
+		pressure = TL.yAxis[y]
+		IQ = TL.getValue(rpm, pressure)
+		SOIv = SOI.interpolate(IQ, rpm)
+		InjectionQuantity = findInjectionfromSOI(durations, selector, IQ, rpm, SOIv)
+		TLINJ.setV(x, y, InjectionQuantity)
+		TLEOI.setV(x, y, SOIv - InjectionQuantity)
+
+print(TL)
+print(TLINJ)
+print(TLEOI)
 
 Injection = Map(None, 0)
 Injection.copyAxis(SOI)
