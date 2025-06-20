@@ -291,6 +291,13 @@ def readToFile(file, bytes):
 		bytes.add(byte_le[0])
 		i+=2
 
+def dry_air_density(temp_celsius, pressure_pa=101325):
+    R = 287.058  # J/(kg·K), specific gas constant for dry air
+    temp_kelvin = temp_celsius + 273.15
+    density = pressure_pa / (R * temp_kelvin)
+    return density
+
+
 
 #edc15File = input("Enter EDC15 filename : ")
 edc15File = "polo-blt-moffa.bin"
@@ -321,6 +328,21 @@ IQByMapOptions = {
 	},
 	'x': {
 		'multiplier': 1,
+		'add': 0
+	},
+	'y': {
+		'multiplier': 1,
+		'add': 0
+	}
+}
+
+BoostOptions = {
+	'map': {
+		'multiplier': 1,
+		'add': 0
+	},
+	'x': {
+		'multiplier': 0.01,
 		'add': 0
 	},
 	'y': {
@@ -376,26 +398,42 @@ TLOptions = {
 	}
 }
 
-selector = Map(bytes, 0x7544c, selectorOptions)
-durations = []
-durations.append(Map(bytes, 0x746a0, durationsOptions))
-durations.append(Map(bytes, 0x74798, durationsOptions))
-durations.append(Map(bytes, 0x74a1e, durationsOptions))
-durations.append(Map(bytes, 0x74ca4, durationsOptions))
-durations.append(Map(bytes, 0x74f2a, durationsOptions))
-durations.append(Map(bytes, 0x751b0, durationsOptions))
-SOIOptions["x"]["address"] = 0x7887A
-SOIOptions["y"]["address"] = 0x78856
-IQByMap = Map(bytes, 0x6E3C8, IQByMapOptions)
-print(IQByMap)
-SOI = Map(bytes, 0x7a15a, SOIOptions)
+# Codeblock
+# Usually 0x40000, 0x50000, 0x60000
+baseAddr = 0x40000
 
-TL = Map(bytes, 0x6D91E, TLOptions)
+selector = Map(bytes, baseAddr + 0x1544c, selectorOptions)
+durations = []
+durations.append(Map(bytes, baseAddr + 0x146a0, durationsOptions))
+durations.append(Map(bytes, baseAddr + 0x14798, durationsOptions))
+durations.append(Map(bytes, baseAddr + 0x14a1e, durationsOptions))
+durations.append(Map(bytes, baseAddr + 0x14ca4, durationsOptions))
+durations.append(Map(bytes, baseAddr + 0x14f2a, durationsOptions))
+durations.append(Map(bytes, baseAddr + 0x151b0, durationsOptions))
+SOIOptions["x"]["address"] = baseAddr + 0x1887A
+SOIOptions["y"]["address"] = baseAddr + 0x18856
+IQByMap = Map(bytes, baseAddr + 0x0E3C8, IQByMapOptions)
+print(IQByMap)
+SOI = Map(bytes, baseAddr + 0x1a15a, SOIOptions)
+
+Boost = Map(bytes, baseAddr + 0x16C64, BoostOptions)
+print(Boost)
+
+TL = Map(bytes, baseAddr + 0x0D91E, TLOptions)
 TLINJ = Map(None, 0)
 TLINJ.copyAxis(TL)
 
+TLSOI = Map(None, 0)
+TLSOI.copyAxis(TL)
+
 TLEOI = Map(None, 0)
 TLEOI.copyAxis(TL)
+
+TLAFR = Map(None, 0)
+TLAFR.copyAxis(TL)
+
+TLBoost = Map(None, 0)
+TLBoost.copyAxis(TL)
 
 for x in range(TL.xAxisSize):
 	for y in range(TL.yAxisSize):
@@ -404,12 +442,31 @@ for x in range(TL.xAxisSize):
 		IQ = TL.getValue(rpm, pressure)
 		SOIv = SOI.interpolate(IQ, rpm)
 		InjectionQuantity = findInjectionfromSOI(durations, selector, IQ, rpm, SOIv)
+		Boostv = Boost.interpolate(IQ, rpm)
 		TLINJ.setV(x, y, InjectionQuantity)
 		TLEOI.setV(x, y, SOIv - InjectionQuantity)
+		TLSOI.setV(x, y, SOIv)
 
+		IAT = 30
+		IAT_density = dry_air_density(IAT, Boostv * 100)
+		VE = Map.rawInterpolate(95.94, 82.5, 900, 5000, rpm) / 100
+		AFR = 0 if IQ == 0 else (474 * IAT_density * VE) / IQ
+		TLAFR.setV(x, y, AFR)
+
+		TLBoost.setV(x, y, Boostv - pressure)
+
+print("TL Map")
 print(TL)
+print("TL Inj ° Map")
 print(TLINJ)
+print("TL SOI ° Map")
+print(TLSOI)
+print("TL EOI ° BTDC Map")
 print(TLEOI)
+print("TL AFR")
+print(TLAFR)
+print("TL Boost relative Map")
+print(TLBoost)
 
 Injection = Map(None, 0)
 Injection.copyAxis(SOI)
