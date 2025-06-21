@@ -151,6 +151,90 @@ class Map:
 			xInterpolate = Map.rawInterpolate(v1,v3, xRange[0], xRange[1], reqX)
 			xInterpolate2 = Map.rawInterpolate(v2,v4, xRange[0], xRange[1], reqX)
 			return Map.rawInterpolate(xInterpolate, xInterpolate2, yRange[0], yRange[1], reqY)
+	def setInterpolate(self, reqX, reqY, target):
+
+		x1, x2 = Map.findUpperLowerBoundaries(self.xAxis, reqX)
+		y1, y2 = Map.findUpperLowerBoundaries(self.yAxis, reqY)
+
+		q11 = self.interpolate(x1, y1)
+		q21 = self.interpolate(x2, y1)
+		q12 = self.interpolate(x1, y2)
+		q22 = self.interpolate(x2, y2)
+
+		 # Interpolation weights
+		dx = x2 - x1
+		dy = y2 - y1
+
+		if dx == 0 and dy == 0:
+
+			q11 = target
+
+			print("Do the changes as follows:")
+			print(x1)
+			print("----------------")
+			print(str(y1) + "|" + str(q11))
+
+		# Handle degenerate 1D cases
+		elif dx == 0:
+			wy = (reqY - y1) / dy
+			interpolated = q11 * (1 - wy) + q12 * wy
+			delta = target - interpolated
+			w1 = 1 - wy
+			w2 = wy
+			norm = w1**2 + w2**2
+			q11 += delta * w1 / norm
+			q12 += delta * w2 / norm
+			print("Do the changes as follows:")
+			print(x1)
+			print("----------------")
+			print(str(y1) + "|" + str(q11))
+			print(str(y2) + "|" + str(q12))
+		elif dy == 0:
+			wx = (reqX - x1) / dx
+			interpolated = q11 * (1 - wx) + q21 * wx
+			delta = target - interpolated
+			w1 = 1 - wx
+			w2 = wx
+			norm = w1**2 + w2**2
+			q11 += delta * w1 / norm
+			q21 += delta * w2 / norm
+			print("Do the changes as follows:")
+			print(x1, x2)
+			print("----------------")
+			print(str(y1) + "|" + str(q11), q21)
+		else:
+			# Regular bilinear interpolation
+			wx = (x - x1) / dx
+			wy = (y - y1) / dy
+
+			# Interpolated value
+			interpolated = (
+				q11 * (1 - wx) * (1 - wy) +
+				q21 * wx * (1 - wy) +
+				q12 * (1 - wx) * wy +
+				q22 * wx * wy
+			)
+
+			delta = target - interpolated
+
+			# Weights
+			w11 = (1 - wx) * (1 - wy)
+			w21 = wx * (1 - wy)
+			w12 = (1 - wx) * wy
+			w22 = wx * wy
+
+			norm = w11**2 + w21**2 + w12**2 + w22**2
+
+			q11 += delta * w11 / norm
+			q21 += delta * w21 / norm
+			q12 += delta * w12 / norm
+			q22 += delta * w22 / norm
+
+			print("Do the changes as follows:")
+			print(x1, x2)
+			print("----------------")
+			print(str(y1) + "|" + str(q11), q21)
+			print(str(y2) + "|" + str(q12), q22)
 
 	def load(self):
 		listStart = self.edcList.head
@@ -258,6 +342,47 @@ def findInjectionfromSOI(durationsArray, selectorMap, iq, rpm, soi):
 
 	realInjectionVal = Map.rawInterpolate(fromDurValue, toDurValue, bound[0], bound[1], soi)
 	return realInjectionVal
+
+def adjust_y_for_target(x0, y0, x1, y1, x_target, y_target):
+    # Interpolation coefficients
+    alpha = (x1 - x_target) / (x1 - x0)
+    beta = (x_target - x0) / (x1 - x0)
+
+    # Interpolated value before adjustment
+    y_interp = y0 * alpha + y1 * beta
+
+    # Delta needed to reach y_target
+    delta = y_target - y_interp
+
+    # Normalize weights for delta application
+    weight_norm = alpha**2 + beta**2
+    delta_y0 = delta * (alpha / weight_norm)
+    delta_y1 = delta * (beta / weight_norm)
+
+    # Adjusted y values
+    new_y0 = y0 + delta_y0
+    new_y1 = y1 + delta_y1
+
+    return new_y0, new_y1
+
+def setInjectionfromSOI(durationsArray, selectorMap, iq, rpm, soi, setv):
+	durationsReversed = selectorMap.xAxis.copy()
+	durationsReversed.reverse() # get selector axis in low to high order (0,5,10,15,....)
+
+	bound = Map.findUpperLowerBoundaries(durationsReversed, soi) # find 2 duration maps associated with that SOI
+
+	fromDur = selectorMap.getValue(bound[0], 0)
+	toDur = selectorMap.getValue(bound[1], 0) 
+
+	fromDurValue = durationsArray[fromDur].interpolate(rpm, iq) # in durations, mg is Y, rpm is X, opposite of SOI
+	toDurValue = durationsArray[toDur].interpolate(rpm, iq) # in durations, mg is Y, rpm is X, opposite of SOI
+
+	newValues = adjust_y_for_target(bound[0], fromDurValue, bound[1], toDurValue, soi, setv)
+
+	print("Changes needed on map " + str(fromDur) + ':')
+	durationsArray[fromDur].setInterpolate(rpm, iq, newValues[0])
+	print("Changes needed on map " + str(toDur) + ':')
+	durationsArray[toDur].setInterpolate(rpm, iq, newValues[1])
 
 def findBestSOIToMatchEOI(rpm, iq, soi, maxSOIDeviation, maxSOI, increment, targetEOI):
 
@@ -407,14 +532,15 @@ durations.append(Map(bytes, baseAddr + 0x14f2a, durationsOptions))
 durations.append(Map(bytes, baseAddr + 0x151b0, durationsOptions))
 SOIOptions["x"]["address"] = baseAddr + 0x1887A
 SOIOptions["y"]["address"] = baseAddr + 0x18856
+
 IQByMap = Map(bytes, baseAddr + 0x0E3C8, IQByMapOptions)
-print(IQByMap)
+
 SOI = Map(bytes, baseAddr + 0x1a15a, SOIOptions)
 
 Boost = Map(bytes, baseAddr + 0x16C64, BoostOptions)
-print(Boost)
 
 TL = Map(bytes, baseAddr + 0x0D91E, TLOptions)
+
 TLINJ = Map(None, 0)
 TLINJ.copyAxis(TL)
 
@@ -436,6 +562,12 @@ TLTQ.copyAxis(TL)
 TLHP = Map(None, 0)
 TLHP.copyAxis(TL)
 
+SmokeMargin = Map(None, 0)
+SmokeMargin.copyAxis(TL)
+
+SMOKEMAPIATREF = 30
+IAT = 30
+
 for x in range(TL.xAxisSize):
 	for y in range(TL.yAxisSize):
 		rpm = TL.xAxis[x]
@@ -447,10 +579,12 @@ for x in range(TL.xAxisSize):
 		TLINJ.setV(x, y, InjectionQuantity)
 		TLEOI.setV(x, y, SOIv - InjectionQuantity)
 		TLSOI.setV(x, y, SOIv)
-		IAT = 30
 		IAT_density = dry_air_density(IAT, Boostv * 100)
 		VE = Map.rawInterpolate(95.94, 82.5, 900, 5000, rpm) / 100
 		AFR = 0 if IQ == 0 else (474 * IAT_density * VE) / IQ
+		
+		AdjustedBoostByIAT = ((273.15 + SMOKEMAPIATREF) / (273.15 + IAT)) * Boostv
+		AllowedSmoke = IQByMap.interpolate(AdjustedBoostByIAT, rpm)
 		# You choose PD 150 stock map related
 		# Found on 038906019HK
 		# For a 150, 57.5mg@1900 is 320Nm
@@ -469,8 +603,16 @@ for x in range(TL.xAxisSize):
 		TLTQ.setV(x, y, TQ)
 		TLHP.setV(x, y, HP)
 		TLAFR.setV(x, y, AFR)
+		SmokeMargin.setV(x, y, AllowedSmoke - IQ)
 
 		TLBoost.setV(x, y, Boostv - pressure)
+
+
+### Experimental
+#SOIv = SOI.interpolate(80, 3000)
+#setInjectionfromSOI(durations, selector, 80, 3000, SOIv, 32.5)
+
+
 
 print("TL Map")
 print(TL)
@@ -480,12 +622,14 @@ print("TL SOI ° Map")
 print(TLSOI)
 print("TL EOI ° BTDC Map")
 print(TLEOI)
-print("TL AFR")
+print("TL AFR IAT=" + str(IAT) + "°C" )
 print(TLAFR)
 print("TL Torque")
 print(TLTQ)
 print("TL HP")
 print(TLHP)
+print("Removed TQ due to IAT (negative is pulled mg)")
+print(SmokeMargin)
 print("TL Boost relative Map")
 print(TLBoost)
 
