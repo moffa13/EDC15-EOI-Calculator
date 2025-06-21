@@ -95,24 +95,23 @@ class Map:
 	'''
 	@staticmethod 
 	def findUpperLowerBoundaries(headerList, x):
-		i = 0
-		for i in range(len(headerList)): # iterate over the whole axis
-			realHeader = headerList[i]
-			lower = 0
-			upper = 0
-			if x < realHeader: # we found the range
-				upper = headerList[i]
-				if i != 0:
-					lower = headerList[i - 1]
-				else:
-					lower = upper # i = 0, extrapolate, return first value
-				return (lower, upper)
-			elif x == realHeader: # x equals to an existing value, there is no range so lower=upper=h[i]
-				upper = headerList[i]
-				lower = headerList[i]
-				return (lower, upper)
-		if i == len(headerList) - 1 and x > headerList[i]: # extrapolate, return last value
-			return (headerList[i], headerList[i])
+		if not headerList:
+			return None
+
+		if x <= headerList[0]:
+			return (headerList[0], headerList[0])
+
+		if x >= headerList[-1]:
+			return (headerList[-1], headerList[-1])
+
+		for i in range(1, len(headerList)):
+			if x == headerList[i]:
+				return (headerList[i], headerList[i])
+			elif x < headerList[i]:
+				return (headerList[i - 1], headerList[i])
+
+		return (headerList[-1], headerList[-1])
+	
 	'''
 	Returns value from a 3d map, None if no exact match
 	'''
@@ -152,7 +151,6 @@ class Map:
 			xInterpolate2 = Map.rawInterpolate(v2,v4, xRange[0], xRange[1], reqX)
 			return Map.rawInterpolate(xInterpolate, xInterpolate2, yRange[0], yRange[1], reqY)
 	def setInterpolate(self, reqX, reqY, target):
-
 		x1, x2 = Map.findUpperLowerBoundaries(self.xAxis, reqX)
 		y1, y2 = Map.findUpperLowerBoundaries(self.yAxis, reqY)
 
@@ -160,21 +158,16 @@ class Map:
 		q21 = self.interpolate(x2, y1)
 		q12 = self.interpolate(x1, y2)
 		q22 = self.interpolate(x2, y2)
+		
+		return Map.rawSetInterpolate(reqX, reqY, x1, x2, y1, y2, q11, q21, q12, q22, target)
+	@staticmethod
+	def rawSetInterpolate(reqX, reqY, x1, x2, y1, y2, q11, q21, q12, q22, target):
 
-		 # Interpolation weights
 		dx = x2 - x1
 		dy = y2 - y1
 
 		if dx == 0 and dy == 0:
-
 			q11 = target
-
-			print("Do the changes as follows:")
-			print(x1)
-			print("----------------")
-			print(str(y1) + "|" + str(q11))
-
-		# Handle degenerate 1D cases
 		elif dx == 0:
 			wy = (reqY - y1) / dy
 			interpolated = q11 * (1 - wy) + q12 * wy
@@ -184,11 +177,10 @@ class Map:
 			norm = w1**2 + w2**2
 			q11 += delta * w1 / norm
 			q12 += delta * w2 / norm
-			print("Do the changes as follows:")
-			print(x1)
-			print("----------------")
-			print(str(y1) + "|" + str(q11))
-			print(str(y2) + "|" + str(q12))
+
+			q21 = None
+			q22 = None
+			
 		elif dy == 0:
 			wx = (reqX - x1) / dx
 			interpolated = q11 * (1 - wx) + q21 * wx
@@ -198,16 +190,14 @@ class Map:
 			norm = w1**2 + w2**2
 			q11 += delta * w1 / norm
 			q21 += delta * w2 / norm
-			print("Do the changes as follows:")
-			print(x1, x2)
-			print("----------------")
-			print(str(y1) + "|" + str(q11), q21)
+
+			q12 = None
+			q22 = None
+			
 		else:
-			# Regular bilinear interpolation
 			wx = (x - x1) / dx
 			wy = (y - y1) / dy
 
-			# Interpolated value
 			interpolated = (
 				q11 * (1 - wx) * (1 - wy) +
 				q21 * wx * (1 - wy) +
@@ -217,7 +207,6 @@ class Map:
 
 			delta = target - interpolated
 
-			# Weights
 			w11 = (1 - wx) * (1 - wy)
 			w21 = wx * (1 - wy)
 			w12 = (1 - wx) * wy
@@ -230,17 +219,14 @@ class Map:
 			q12 += delta * w12 / norm
 			q22 += delta * w22 / norm
 
-			print("Do the changes as follows:")
-			print(x1, x2)
-			print("----------------")
-			print(str(y1) + "|" + str(q11), q21)
-			print(str(y2) + "|" + str(q12), q22)
+			
+
+		return q11, q21, q12, q22, x1, x2, y1, y2
 
 	def load(self):
 		listStart = self.edcList.head
 		mapStart = listStart.skip(self.address / 2)
 		mapStart = mapStart.next # skip number descriptor
-
 
 		if self.isNormalMap():
 
@@ -343,27 +329,27 @@ def findInjectionfromSOI(durationsArray, selectorMap, iq, rpm, soi):
 	realInjectionVal = Map.rawInterpolate(fromDurValue, toDurValue, bound[0], bound[1], soi)
 	return realInjectionVal
 
-def adjust_y_for_target(x0, y0, x1, y1, x_target, y_target):
-    # Interpolation coefficients
-    alpha = (x1 - x_target) / (x1 - x0)
-    beta = (x_target - x0) / (x1 - x0)
+def displayNeededChanges(q11, q21, q12, q22, x1, x2, y1, y2):
 
-    # Interpolated value before adjustment
-    y_interp = y0 * alpha + y1 * beta
-
-    # Delta needed to reach y_target
-    delta = y_target - y_interp
-
-    # Normalize weights for delta application
-    weight_norm = alpha**2 + beta**2
-    delta_y0 = delta * (alpha / weight_norm)
-    delta_y1 = delta * (beta / weight_norm)
-
-    # Adjusted y values
-    new_y0 = y0 + delta_y0
-    new_y1 = y1 + delta_y1
-
-    return new_y0, new_y1
+	print("Do the changes as follows:")
+	if x1 == x2 and y1 == y2:
+		print(f"{'':>6}{x1:>8}")
+		print("-" * 16)
+		print(f"{y1:>5} | {q11:.2f}")
+	elif x1 == x2:
+		print(f"{'':>6}{x1:>8}")
+		print("-" * 16)
+		print(f"{y1:>5} | {q11:.2f}")
+		print(f"{y2:>5} | {q12:.2f}")
+	elif y1 == y2:
+		print(f"{'':>6}{x1:>8}{x2:>8}")
+		print("-" * 26)
+		print(f"{y1:>5} | {q11:.2f}   {q21:.2f}")
+	else:
+		print(f"{'':>6}{x1:>8}{x2:>8}")
+		print("-" * 26)
+		print(f"{y1:>5} | {q11:.2f}   {q21:.2f}")
+		print(f"{y2:>5} | {q12:.2f}   {q22:.2f}")
 
 def setInjectionfromSOI(durationsArray, selectorMap, iq, rpm, soi, setv):
 	durationsReversed = selectorMap.xAxis.copy()
@@ -377,12 +363,12 @@ def setInjectionfromSOI(durationsArray, selectorMap, iq, rpm, soi, setv):
 	fromDurValue = durationsArray[fromDur].interpolate(rpm, iq) # in durations, mg is Y, rpm is X, opposite of SOI
 	toDurValue = durationsArray[toDur].interpolate(rpm, iq) # in durations, mg is Y, rpm is X, opposite of SOI
 
-	newValues = adjust_y_for_target(bound[0], fromDurValue, bound[1], toDurValue, soi, setv)
+	newValues = Map.rawSetInterpolate(soi, 0, bound[0], bound[1], 0, 0, fromDurValue, toDurValue, None, None, setv)
 
 	print("Changes needed on map " + str(fromDur) + ':')
-	durationsArray[fromDur].setInterpolate(rpm, iq, newValues[0])
+	displayNeededChanges(*durationsArray[fromDur].setInterpolate(rpm, iq, newValues[0]))
 	print("Changes needed on map " + str(toDur) + ':')
-	durationsArray[toDur].setInterpolate(rpm, iq, newValues[1])
+	displayNeededChanges(*durationsArray[toDur].setInterpolate(rpm, iq, newValues[1]))
 
 def findBestSOIToMatchEOI(rpm, iq, soi, maxSOIDeviation, maxSOI, increment, targetEOI):
 
@@ -571,19 +557,19 @@ IAT = 30
 for x in range(TL.xAxisSize):
 	for y in range(TL.yAxisSize):
 		rpm = TL.xAxis[x]
-		pressure = TL.yAxis[y]
-		IQ = TL.getValue(rpm, pressure)
-		SOIv = SOI.interpolate(IQ, rpm)
-		InjectionQuantity = findInjectionfromSOI(durations, selector, IQ, rpm, SOIv)
-		Boostv = Boost.interpolate(IQ, rpm)
+		pressure = TL.yAxis[y] # Ambient pressure found in TL y axis
+		IQ = TL.getValue(rpm, pressure) # Requested IQ
+		SOIv = SOI.interpolate(IQ, rpm) # Associated SOI with rpm/IQ combo
+		InjectionQuantity = findInjectionfromSOI(durations, selector, IQ, rpm, SOIv) # Associated Injection ° from SOI, rpm, IQ
+		Boostv = Boost.interpolate(IQ, rpm) # Requested boost
 		TLINJ.setV(x, y, InjectionQuantity)
 		TLEOI.setV(x, y, SOIv - InjectionQuantity)
 		TLSOI.setV(x, y, SOIv)
-		IAT_density = dry_air_density(IAT, Boostv * 100)
-		VE = Map.rawInterpolate(95.94, 82.5, 900, 5000, rpm) / 100
-		AFR = 0 if IQ == 0 else (474 * IAT_density * VE) / IQ
+		IAT_density = dry_air_density(IAT, Boostv * 100) # Density according to abs boost pressure and IAT
+		VE = Map.rawInterpolate(95.94, 82.5, 900, 5000, rpm) / 100 # VE efficiency based on linear formula
+		AFR = 0 if IQ == 0 else (474 * IAT_density * VE) / IQ # Calculated AFR
 		
-		AdjustedBoostByIAT = ((273.15 + SMOKEMAPIATREF) / (273.15 + IAT)) * Boostv
+		AdjustedBoostByIAT = ((273.15 + SMOKEMAPIATREF) / (273.15 + IAT)) * Boostv # Calculate how much boost that would be at IAT (used to match smoke map that is calibrated for X°C)
 		AllowedSmoke = IQByMap.interpolate(AdjustedBoostByIAT, rpm)
 		# You choose PD 150 stock map related
 		# Found on 038906019HK
@@ -603,14 +589,19 @@ for x in range(TL.xAxisSize):
 		TLTQ.setV(x, y, TQ)
 		TLHP.setV(x, y, HP)
 		TLAFR.setV(x, y, AFR)
+
+		# This map is showing the margin of smoke before reaching smoke map limits
+		# a negative delta IQ is IQ that will never be reached due to insufficient boost for requested afr at IAT
+		# a positive is IQ that can be gained just by raising TL.
 		SmokeMargin.setV(x, y, AllowedSmoke - IQ)
 
 		TLBoost.setV(x, y, Boostv - pressure)
 
 
 ### Experimental
-#SOIv = SOI.interpolate(80, 3000)
-#setInjectionfromSOI(durations, selector, 80, 3000, SOIv, 32.5)
+SOIv = SOI.interpolate(76, 3100)
+print(findInjectionfromSOI(durations, selector, 76, 3100, SOIv))
+setInjectionfromSOI(durations, selector, 76, 3100, SOIv, 30)
 
 
 
