@@ -297,15 +297,6 @@ def dry_air_density(temp_celsius, pressure_pa=101325):
     density = pressure_pa / (R * temp_kelvin)
     return density
 
-
-
-#edc15File = input("Enter EDC15 filename : ")
-edc15File = "polo-blt-moffa.bin"
-#edc15File = "Michael Schafer GTB2260VK V9.bin"
-#conf = input("Enter EDC15 Durations addresses list : ")
-bytes = DoubleLinkedList()
-readToFile(edc15File, bytes)
-
 durationsOptions = {
 	'map': {
 		'multiplier': 0.023437,
@@ -398,9 +389,13 @@ TLOptions = {
 	}
 }
 
+edc15File = "polo-blt-moffa.bin"
+bytes = DoubleLinkedList()
+readToFile(edc15File, bytes)
+
 # Codeblock
 # Usually 0x40000, 0x50000, 0x60000
-baseAddr = 0x40000
+baseAddr = 0x60000
 
 selector = Map(bytes, baseAddr + 0x1544c, selectorOptions)
 durations = []
@@ -435,6 +430,12 @@ TLAFR.copyAxis(TL)
 TLBoost = Map(None, 0)
 TLBoost.copyAxis(TL)
 
+TLTQ = Map(None, 0)
+TLTQ.copyAxis(TL)
+
+TLHP = Map(None, 0)
+TLHP.copyAxis(TL)
+
 for x in range(TL.xAxisSize):
 	for y in range(TL.yAxisSize):
 		rpm = TL.xAxis[x]
@@ -446,11 +447,15 @@ for x in range(TL.xAxisSize):
 		TLINJ.setV(x, y, InjectionQuantity)
 		TLEOI.setV(x, y, SOIv - InjectionQuantity)
 		TLSOI.setV(x, y, SOIv)
-
 		IAT = 30
 		IAT_density = dry_air_density(IAT, Boostv * 100)
 		VE = Map.rawInterpolate(95.94, 82.5, 900, 5000, rpm) / 100
 		AFR = 0 if IQ == 0 else (474 * IAT_density * VE) / IQ
+		TQ_coeff = 0 if rpm < 1900 or rpm > 4000 else Map.rawInterpolate(1, 0.854, 1900, 4000, rpm)
+		TQ = (310 / 57.5) * IQ * TQ_coeff
+		HP = (TQ * rpm) / 7022
+		TLTQ.setV(x, y, TQ)
+		TLHP.setV(x, y, HP)
 		TLAFR.setV(x, y, AFR)
 
 		TLBoost.setV(x, y, Boostv - pressure)
@@ -465,6 +470,10 @@ print("TL EOI ° BTDC Map")
 print(TLEOI)
 print("TL AFR")
 print(TLAFR)
+print("TL Torque")
+print(TLTQ)
+print("TL HP")
+print(TLHP)
 print("TL Boost relative Map")
 print(TLBoost)
 
