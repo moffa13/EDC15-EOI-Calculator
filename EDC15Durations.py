@@ -451,8 +451,20 @@ for x in range(TL.xAxisSize):
 		IAT_density = dry_air_density(IAT, Boostv * 100)
 		VE = Map.rawInterpolate(95.94, 82.5, 900, 5000, rpm) / 100
 		AFR = 0 if IQ == 0 else (474 * IAT_density * VE) / IQ
-		TQ_coeff = 0 if rpm < 1900 or rpm > 4000 else Map.rawInterpolate(1, 0.854, 1900, 4000, rpm)
-		TQ = (310 / 57.5) * IQ * TQ_coeff
+		# You choose PD 150 stock map related
+		# Found on 038906019HK
+		# For a 150, 57.5mg@1900 is 320Nm
+		# 54mg @ 4000 is 150hp (263Nm)
+		#TQ_coeff = 0 if rpm < 1900 or rpm > 4000 else Map.rawInterpolate(1, 0.876, 1900, 4000, rpm)
+		#TQ = (320 / 57.5) * IQ * TQ_coeff
+		###
+		# You choose PD 130 stock map related
+		# Found on 038906019NJ
+		# For a 130, 59.5mg@1900 is 310Nm
+		# 47,9mg @ 4000 is 130hp (228Nm)
+		TQ_coeff = 0 if rpm < 1900 or rpm > 4000 else Map.rawInterpolate(1, 0.914, 1900, 4000, rpm)
+		TQ = (310 / 59.5) * IQ * TQ_coeff
+		###
 		HP = (TQ * rpm) / 7022
 		TLTQ.setV(x, y, TQ)
 		TLHP.setV(x, y, HP)
