@@ -195,8 +195,8 @@ class Map:
 			q22 = None
 			
 		else:
-			wx = (x - x1) / dx
-			wy = (y - y1) / dy
+			wx = (reqX - x1) / dx
+			wy = (reqY - y1) / dy
 
 			interpolated = (
 				q11 * (1 - wx) * (1 - wy) +
@@ -364,6 +364,8 @@ def setInjectionfromSOI(durationsArray, selectorMap, iq, rpm, soi, setv):
 	toDurValue = durationsArray[toDur].interpolate(rpm, iq) # in durations, mg is Y, rpm is X, opposite of SOI
 
 	newValues = Map.rawSetInterpolate(soi, 0, bound[0], bound[1], 0, 0, fromDurValue, toDurValue, None, None, setv)
+
+	print(newValues)
 
 	print("Changes needed on map " + str(fromDur) + ':')
 	displayNeededChanges(*durationsArray[fromDur].setInterpolate(rpm, iq, newValues[0]))
