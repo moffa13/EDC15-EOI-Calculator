@@ -584,7 +584,11 @@ for x in range(TL.xAxisSize):
 		# Found on 038906019NJ
 		# For a 130, 59.5mg@1900 is 310Nm
 		# 47,9mg @ 4000 is 130hp (228Nm)
-		TQ_coeff = 0 if rpm < 1900 or rpm > 4000 else Map.rawInterpolate(1, 0.914, 1900, 4000, rpm)
+		TQ_coeff = Map.rawInterpolate(1, 0.914, 1900, 4000, rpm) # OK for > 1900 and < 4000
+		if rpm < 1900:
+			TQ_coeff = Map.rawInterpolate(0.95, 1, 0, 1900, rpm)
+		elif rpm > 4000:
+			TQ_coeff = Map.rawInterpolate(0.914, 0.88, 4000, 5300, rpm)
 		TQ = (310 / 59.5) * IQ * TQ_coeff
 		###
 		HP = (TQ * rpm) / 7022
